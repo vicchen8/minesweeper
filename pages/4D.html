@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4D Minesweeper</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f4f4f4;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #info {
+      margin: 20px 0;
+      font-size: 18px;
+      color: #333;
+    }
+
+    #timer, #flag-count {
+      font-weight: bold;
+      margin-right: 20px;
+    }
+
+    .big-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin: 20px auto;
+      width: max-content;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 50px);
+      gap: 5px;
+    }
+
+    .cell {
+      width: 50px;
+      height: 50px;
+      line-height: 50px;
+      text-align: center;
+      border: 1px solid #ccc;
+      background-color: #808080;
+      cursor: pointer;
+      font-size: 14px;
+      color: white;
+      border-radius: 5px;
+      transition: all 0.3s ease;
+    }
+
+    .cell.revealed {
+      background-color: #ddd;
+      cursor: default;
+      color: black;
+    }
+
+    .cell.bomb {
+      background-color: red;
+      color: white;
+    }
+
+    .cell.flagged {
+      background-color: #ffc;
+      color: white;
+    }
+
+    .cell:hover {
+      background-color: #aaa;
+    }
+
+    .cell.revealed:hover {
+      background-color: #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>4D Minesweeper</h1>
+  <div id="info">
+    <span id="timer">Time: 0s</span>
+    <span id="flag-count">Flags remaining: <span id="remaining-flags"></span></span>
+  </div>
+  <div id="game" class="big-grid"></div>
+
+  <script>
+    const n = 4;
+    const n4 = n ** 4;
+    const n3 = n ** 3;
+    const n2 = n ** 2;
+    const num_bomb = 15;
+    let cellsToReveal = n4 - num_bomb;
+    let gameOver = false;
+    let flagsRemaining = num_bomb;
+    let timer = 0;
+    let timerInterval;
+
+    // Initialize 4D grid
+    const data = Array.from({ length: n }, () =>
+      Array.from({ length: n }, () =>
+        Array.from({ length: n }, () => Array(n).fill(0))
+      )
+    );
+
+    // Place bombs in the grid
+    for (let i = 0; i < num_bomb; i++) {
+      const tmp = Math.floor(Math.random() * n4);
+      const x1 = Math.floor(tmp / n3);
+      const x2 = Math.floor((tmp % n3) / n2);
+      const x3 = Math.floor((tmp % n2) / n);
+      const x4 = tmp % n;
+
+      if (data[x1][x2][x3][x4] === -1) {
+        i--;
+        continue;
+      } else {
+        data[x1][x2][x3][x4] = -1;
+      }
+    }
+
+    // Calculate numbers around the bombs
+    for (let i = 0; i < n4; i++) {
+      const x1 = Math.floor(i / n3);
+      const x2 = Math.floor((i % n3) / n2);
+      const x3 = Math.floor((i % n2) / n);
+      const x4 = i % n;
+
+      if (data[x1][x2][x3][x4] === -1) {
+        for (let w = -1; w <= 1; w++) {
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              for (let z = -1; z <= 1; z++) {
+                const a1 = x1 + w;
+                const a2 = x2 + x;
+                const a3 = x3 + y;
+                const a4 = x4 + z;
+
+                if (
+                  a1 >= 0 && a1 < n &&
+                  a2 >= 0 && a2 < n &&
+                  a3 >= 0 && a3 < n &&
+                  a4 >= 0 && a4 < n
+                ) {
+                  if (data[a1][a2][a3][a4] !== -1) {
+                    data[a1][a2][a3][a4]++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Update the timer
+    const updateTimer = () => {
+      if (gameOver) return;
+      timer++;
+      document.getElementById("timer").textContent = `Time: ${timer}s`;
+    };
+
+    // Start the timer
+    const startTimer = () => {
+      if (timerInterval) return;
+      timerInterval = setInterval(updateTimer, 1000);
+    };
+
+    // Check win condition
+    const checkWin = () => {
+      if (cellsToReveal === 0) {
+        gameOver = true;
+        clearInterval(timerInterval);
+        setTimeout(() => alert("Congratulations! You've cleared the board!"), 100);
+      }
+    };
+
+    // Reveal all cells when game is over
+    const revealAllCells = () => {
+      const allCells = document.querySelectorAll(".cell");
+      allCells.forEach((cell) => {
+        const [x1, x2, x3, x4] = cell.dataset.coords.split(",").map(Number);
+        if (data[x1][x2][x3][x4] === -1) {
+          cell.classList.add("bomb");
+          cell.textContent = "💣";
+        } else {
+          cell.classList.add("revealed");
+          if (data[x1][x2][x3][x4] > 0) {
+            cell.textContent = data[x1][x2][x3][x4];
+          }
+        }
+      });
+    };
+
+    // Reveal a cell
+    const revealCell = (x1, x2, x3, x4) => {
+      if (gameOver) return;
+
+      const cell = document.querySelector(`.cell[data-coords='${x1},${x2},${x3},${x4}']`);
+      if (!cell || cell.classList.contains("revealed") || cell.classList.contains("flagged")) return;
+
+      cell.classList.add("revealed");
+      cellsToReveal--;
+      checkWin();
+
+      if (data[x1][x2][x3][x4] === 0) {
+        for (let w = -1; w <= 1; w++) {
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              for (let z = -1; z <= 1; z++) {
+                const nx1 = x1 + w;
+                const nx2 = x2 + x;
+                const nx3 = x3 + y;
+                const nx4 = x4 + z;
+
+                if (
+                  nx1 >= 0 && nx1 < n &&
+                  nx2 >= 0 && nx2 < n &&
+                  nx3 >= 0 && nx3 < n &&
+                  nx4 >= 0 && nx4 < n
+                ) {
+                  revealCell(nx1, nx2, nx3, nx4);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        cell.textContent = data[x1][x2][x3][x4];
+      }
+    };
+
+    // Flag or unflag a cell
+    const flagCell = (cell) => {
+      if (gameOver || cell.classList.contains("revealed")) return;
+
+      cell.classList.toggle("flagged");
+      if (cell.classList.contains("flagged")) {
+        cell.textContent = "🚩";
+        flagsRemaining--;
+      } else {
+        cell.textContent = "";
+        flagsRemaining++;
+      }
+      document.getElementById("remaining-flags").textContent = flagsRemaining;
+    };
+
+    // Create the game grid
+    const gameContainer = document.getElementById("game");
+
+    for (let a1 = 0; a1 < n; a1++) {
+      for (let a2 = 0; a2 < n; a2++) {
+        const bigGrid = document.createElement("div");
+        bigGrid.className = "grid";
+
+        for (let a3 = 0; a3 < n; a3++) {
+          for (let a4 = 0; a4 < n; a4++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.dataset.coords = `${a1},${a2},${a3},${a4}`;
+
+            // Handle cell click
+            cell.addEventListener("click", () => {
+              if (!gameOver) {
+                startTimer();
+                const [x1, x2, x3, x4] = cell.dataset.coords.split(",").map(Number);
+
+                if (data[x1][x2][x3][x4] === -1) {
+                  cell.classList.add("bomb");
+                  cell.textContent = "💣";
+                  gameOver = true;
+                  clearInterval(timerInterval);
+                  revealAllCells();
+                  alert("Game Over!");
+                } else {
+                  revealCell(x1, x2, x3, x4);
+                }
+              }
+            });
+
+            // Handle right-click for flagging
+            cell.addEventListener("contextmenu", (e) => {
+              e.preventDefault();
+              flagCell(cell);
+            });
+
+            bigGrid.appendChild(cell);
+          }
+        }
+
+        gameContainer.appendChild(bigGrid);
+      }
+    }
+
+    // Set initial flags remaining
+    document.getElementById("remaining-flags").textContent = flagsRemaining;
+  </script>
+</body>
+</html>
