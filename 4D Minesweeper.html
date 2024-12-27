@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4D Minesweeper</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    .big-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px; /* 增大間距 */
+      margin: 20px auto;
+      width: max-content;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 50px);
+      gap: 5px;
+    }
+    .cell {
+      width: 50px;
+      height: 50px;
+      line-height: 50px;
+      text-align: center;
+      border: 1px solid #ccc;
+      background-color: #808080;
+      cursor: pointer;
+      font-size: 14px;
+      color: white;
+    }
+    .cell.revealed {
+      background-color: #ddd;
+      cursor: default;
+      color: black;
+    }
+    .cell.bomb {
+      background-color: red;
+      color: white;
+    }
+    .cell.flagged {
+      background-color: blue;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>4D Minesweeper</h1>
+  <div id="game" class="big-grid"></div>
+  <script>
+    const n = 4;
+    const n4 = n ** 4;
+    const n3 = n ** 3;
+    const n2 = n ** 2;
+    let cellsToReveal = n4 - Math.floor(n4 / 25);
+    let gameOver = false;
+
+    const data = Array.from({ length: n }, () =>
+      Array.from({ length: n }, () =>
+        Array.from({ length: n }, () => Array(n).fill(0))
+      )
+    );
+
+    const num_bomb = Math.floor(n4 / 25);
+    let a1, a2, a3, a4;
+
+    for (let i = 0; i < num_bomb; i++) {
+      const tmp = Math.floor(Math.random() * n4);
+
+      if (data[Math.floor(tmp / n3)][Math.floor((tmp % n3) / n2)][Math.floor((tmp % n2) / n)][tmp % n] === -1) {
+        i--;
+        continue;
+      } else {
+        data[Math.floor(tmp / n3)][Math.floor((tmp % n3) / n2)][Math.floor((tmp % n2) / n)][tmp % n] = -1;
+      }
+    }
+
+    for (let i = 0; i < n4; i++) {
+      if (
+        data[Math.floor(i / n3)][Math.floor((i % n3) / n2)][Math.floor((i % n2) / n)][i % n] === -1
+      ) {
+        for (let w = -1; w <= 1; w++) {
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              for (let z = -1; z <= 1; z++) {
+                a1 = Math.floor(i / n3) + w;
+                a2 = Math.floor((i % n3) / n2) + x;
+                a3 = Math.floor((i % n2) / n) + y;
+                a4 = (i % n) + z;
+
+                if (
+                  a1 >= 0 && a1 < n &&
+                  a2 >= 0 && a2 < n &&
+                  a3 >= 0 && a3 < n &&
+                  a4 >= 0 && a4 < n
+                ) {
+                  if (data[a1][a2][a3][a4] !== -1) {
+                    data[a1][a2][a3][a4]++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const checkWin = () => {
+      if (cellsToReveal === 0) {
+        gameOver = true;
+        setTimeout(() => alert("Congratulations! You've cleared the board!"), 100);
+      }
+    };
+
+    const revealCell = (x1, x2, x3, x4) => {
+      if (gameOver) return;
+
+      const cell = document.querySelector(`.cell[data-coords='${x1},${x2},${x3},${x4}']`);
+      if (!cell || cell.classList.contains("revealed") || cell.classList.contains("flagged")) return;
+
+      cell.classList.add("revealed");
+      cellsToReveal--;
+      checkWin();
+
+      if (data[x1][x2][x3][x4] === 0) {
+        for (let w = -1; w <= 1; w++) {
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              for (let z = -1; z <= 1; z++) {
+                const nx1 = x1 + w;
+                const nx2 = x2 + x;
+                const nx3 = x3 + y;
+                const nx4 = x4 + z;
+
+                if (
+                  nx1 >= 0 && nx1 < n &&
+                  nx2 >= 0 && nx2 < n &&
+                  nx3 >= 0 && nx3 < n &&
+                  nx4 >= 0 && nx4 < n
+                ) {
+                  revealCell(nx1, nx2, nx3, nx4);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        cell.textContent = data[x1][x2][x3][x4];
+      }
+    };
+
+    const gameContainer = document.getElementById("game");
+
+    for (let a1 = 0; a1 < n; a1++) {
+      for (let a2 = 0; a2 < n; a2++) {
+        const bigGrid = document.createElement("div");
+        bigGrid.className = "grid";
+
+        for (let a3 = 0; a3 < n; a3++) {
+          for (let a4 = 0; a4 < n; a4++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.dataset.coords = `${a1},${a2},${a3},${a4}`;
+
+            cell.addEventListener("click", () => {
+              if (gameOver) return;
+
+              const [x1, x2, x3, x4] = cell.dataset.coords.split(",").map(Number);
+
+              if (data[x1][x2][x3][x4] === -1) {
+                cell.classList.add("bomb");
+                cell.textContent = "💣";
+                gameOver = true;
+                alert("Game Over!");
+              } else {
+                revealCell(x1, x2, x3, x4);
+              }
+            });
+
+            cell.addEventListener("contextmenu", (e) => {
+              e.preventDefault();
+              if (!gameOver && !cell.classList.contains("revealed")) {
+                cell.classList.toggle("flagged");
+                cell.textContent = cell.classList.contains("flagged") ? "🚩" : "";
+              }
+            });
+
+            bigGrid.appendChild(cell);
+          }
+        }
+
+        gameContainer.appendChild(bigGrid);
+      }
+    }
+  </script>
+</body>
+</html>
