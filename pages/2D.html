@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #e9ecef;
+        }
+
+        #scoreboard {
+            margin-bottom: 20px;
+            text-align: center;
+            color: #343a40;
+            font-size: 18px;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #controls {
+            margin-bottom: 10px;
+        }
+
+
+        #minesweeper {
+            display: grid;
+            gap: 2px;
+            background-color: #333;
+            padding: 5px;
+            grid-template-columns: repeat(10, 1fr);
+            border-radius: 8px;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #6c757d;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s, box-shadow 0.2s;
+            border: none;
+        }
+
+        .cell.revealed {
+            background-color: #ddd;
+            color: #333;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .cell.mine {
+            background-color: red;
+            color: white;
+        }
+
+        .cell.flag {
+            background-color: #ffc;
+            color: #333;
+        }
+
+        .cell:hover {
+            background-color: #aaa;
+        }
+
+        .cell.revealed:hover {
+            background-color: #ddd;
+        }
+
+        .cell:active {
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .back-button:hover {
+            background-color: #5a6268;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+
+<body>
+    <button class="back-button" onclick="window.location.href='index.html'">返回主頁</button>
+    <div id="scoreboard">
+        <p>Flags Remaining: <span id="flagsRemaining">15</span></p>
+        <p>Timer: <span id="timer">0</span>s</p>
+    </div>
+    <div id="controls">
+        <button id="restart">Restart</button>
+    </div>
+    <div id="minesweeper"></div>
+
+    <script>
+        const gridSize = 10; // 10x10 grid
+        const mineCount = 15;
+
+        const minesweeper = document.getElementById('minesweeper');
+        const flagsRemainingDisplay = document.getElementById('flagsRemaining');
+        const timerDisplay = document.getElementById('timer');
+        minesweeper.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+
+        let grid = [];
+        let flagsRemaining = mineCount;
+        let timer = 0;
+        let timerInterval;
+        let isFirstClick = true;
+
+        function startTimer() {
+            timer = 0;
+            timerInterval = setInterval(() => {
+                timer++;
+                timerDisplay.textContent = timer;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function createGrid(safeX = -1, safeY = -1) {
+            // Initialize grid
+            grid = Array(gridSize).fill().map(() =>
+                Array(gridSize).fill().map(() => ({
+                    mine: false,
+                    revealed: false,
+                    count: 0,
+                    flagged: false
+                }))
+            );
+
+            // 如果不是第一次点击，才放置地雷
+            if (safeX === -1 && safeY === -1) {
+                return;  // 等待第一次点击再放置地雷
+            }
+
+            // Place mines
+            let placedMines = 0;
+            while (placedMines < mineCount) {
+                const x = Math.floor(Math.random() * gridSize);
+                const y = Math.floor(Math.random() * gridSize);
+
+                // 检查是否在安全区域内
+                const isSafeArea = Math.abs(x - safeX) <= 1 && Math.abs(y - safeY) <= 1;
+
+                if (!grid[x][y].mine && !isSafeArea) {
+                    grid[x][y].mine = true;
+                    placedMines++;
+                }
+            }
+
+            // Calculate mine counts
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    if (grid[x][y].mine) continue;
+
+                    let count = 0;
+                    for (let dx = -1; dx <= 1; dx++) {
+                        for (let dy = -1; dy <= 1; dy++) {
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && grid[nx][ny].mine) {
+                                count++;
+                            }
+                        }
+                    }
+                    grid[x][y].count = count;
+                }
+            }
+        }
+
+        function renderGrid() {
+            minesweeper.innerHTML = '';
+
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+
+                    if (grid[x][y].flagged) {
+                        cell.classList.add('flag');
+                        cell.textContent = '🚩';
+                    } else if (grid[x][y].revealed) {
+                        cell.classList.add('revealed');
+                        if (grid[x][y].mine) {
+                            cell.classList.add('mine');
+                            cell.textContent = '💣';
+                        } else if (grid[x][y].count > 0) {
+                            cell.textContent = grid[x][y].count;
+                        }
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(x, y));
+                    cell.addEventListener('contextmenu', (e) => handleCellFlag(e, x, y));
+                    minesweeper.appendChild(cell);
+                }
+            }
+        }
+
+        function handleCellClick(x, y) {
+            if (grid[x][y].flagged) return;
+
+            if (isFirstClick) {
+                isFirstClick = false;
+                createGrid(x, y);
+                startTimer();
+            }
+
+            // 如果是已經揭露的格子，檢查周圍旗子數量
+            if (grid[x][y].revealed) {
+                const surroundingFlags = countSurroundingFlags(x, y);
+                // 如果周圍旗子數量等於格子上的數字
+                if (surroundingFlags === grid[x][y].count) {
+                    // 打開周圍未揭露且未插旗的格子
+                    revealSurroundingCells(x, y);
+                }
+                return;
+            }
+
+            grid[x][y].revealed = true;
+
+            if (grid[x][y].mine) {
+                alert('Game Over!');
+                revealAll();
+                stopTimer();
+                return;
+            }
+
+            if (grid[x][y].count === 0) {
+                revealAdjacent(x, y);
+            }
+
+            renderGrid();
+            checkWin();
+        }
+
+        function handleCellFlag(event, x, y) {
+            event.preventDefault();
+
+            if (grid[x][y].revealed) return;
+
+            if (!grid[x][y].flagged && flagsRemaining === 0) {
+                alert('No flags remaining!');
+                return;
+            }
+
+            grid[x][y].flagged = !grid[x][y].flagged;
+            flagsRemaining += grid[x][y].flagged ? -1 : 1;
+            flagsRemainingDisplay.textContent = flagsRemaining;
+
+            renderGrid();
+            checkWin();
+        }
+
+        function revealAdjacent(x, y) {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && !grid[nx][ny].revealed && !grid[nx][ny].flagged) {
+                        handleCellClick(nx, ny);
+                    }
+                }
+            }
+        }
+
+        function revealAll() {
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    grid[x][y].revealed = true;
+                }
+            }
+            renderGrid();
+        }
+
+        function checkWin() {
+            let correctlyFlaggedMines = 0;
+            let allNonMinesRevealed = true;
+
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    if (grid[x][y].mine && grid[x][y].flagged) {
+                        correctlyFlaggedMines++;
+                    }
+                    if (!grid[x][y].mine && !grid[x][y].revealed) {
+                        allNonMinesRevealed = false;
+                    }
+                }
+            }
+
+            if (correctlyFlaggedMines === mineCount && allNonMinesRevealed) {
+                alert('Congratulations, you win!');
+                stopTimer();
+            }
+        }
+
+        function resetGame() {
+            stopTimer();
+            flagsRemaining = mineCount;
+            flagsRemainingDisplay.textContent = flagsRemaining;
+            isFirstClick = true;
+            createGrid();
+            renderGrid();
+            startTimer();
+        }
+
+        // 添加重启按钮功能
+        document.getElementById("restart").addEventListener("click", () => {
+            // 重置游戏状态
+            flagsRemaining = mineCount;
+            flagsRemainingDisplay.textContent = flagsRemaining;
+            timer = 0;
+            timerDisplay.textContent = timer;
+            clearInterval(timerInterval);
+            isFirstClick = true;  // 重置第一次点击状态
+
+            // 重新创建网格
+            createGrid();
+            renderGrid();
+        });
+
+        // 添加計算周圍旗子數量的函數
+        function countSurroundingFlags(x, y) {
+            let flagCount = 0;
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (
+                        nx >= 0 && ny >= 0 &&
+                        nx < gridSize && ny < gridSize &&
+                        grid[nx][ny].flagged
+                    ) {
+                        flagCount++;
+                    }
+                }
+            }
+            return flagCount;
+        }
+
+        // 添加揭露周圍格子的函數
+        function revealSurroundingCells(x, y) {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (
+                        nx >= 0 && ny >= 0 &&
+                        nx < gridSize && ny < gridSize &&
+                        !grid[nx][ny].revealed && !grid[nx][ny].flagged
+                    ) {
+                        // 如果點到地雷，遊戲結束
+                        if (grid[nx][ny].mine) {
+                            grid[nx][ny].revealed = true;
+                            alert('Game Over!');
+                            revealAll();
+                            stopTimer();
+                            return;
+                        }
+                        // 否則正常揭露格子
+                        handleCellClick(nx, ny);
+                    }
+                }
+            }
+        }
+
+        createGrid();
+        renderGrid();
+    </script>
+</body>
+
+</html>
